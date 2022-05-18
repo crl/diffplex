@@ -359,7 +359,7 @@ namespace DiffPlex.Wpf.Controls
                     Debug.WriteLine(exception.Message);
                 }
 
-                this.FilterName = str;
+                this.FilterName = newValue;
             };
 
             InlineContentPanel.LineContextMenu =
@@ -546,7 +546,7 @@ namespace DiffPlex.Wpf.Controls
                 newValue = FilterName;
             }
 
-            XmlNode resultNode = list[0];
+            XmlNode resultNode =null;
             foreach (XmlNode node in list)
             {
                 if (node.Attributes["Name"].InnerText == newValue)
