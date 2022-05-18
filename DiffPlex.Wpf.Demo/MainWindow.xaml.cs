@@ -42,8 +42,8 @@ namespace DiffPlex.Wpf.Demo
             DiffView.NewText = TestData.DuplicateText(TestData.NewText, 50);
             DiffView.SetHeaderAsOldToNew();
             Background = new SolidColorBrush(isDark ? Color.FromRgb(32, 32, 32) : Color.FromRgb(251, 251, 251));
-            DiffButton.Background = FutherActionsButton.Background = WindowButton.Background = new SolidColorBrush(isDark ? Color.FromRgb(80, 160, 240) : Color.FromRgb(160, 216, 240));
-            IgnoreUnchangedCheckBox.Content = TestData.RemoveHotkey(DiffView.CollapseUnchangedSectionsToggleTitle);
+            DiffButton.Background = FutherActionsButton.Background =  new SolidColorBrush(isDark ? Color.FromRgb(80, 160, 240) : Color.FromRgb(160, 216, 240));
+            //IgnoreUnchangedCheckBox.Content = TestData.RemoveHotkey(DiffView.CollapseUnchangedSectionsToggleTitle);
             MarginLineCountLabel.Content = TestData.RemoveHotkey(DiffView.ContextLinesMenuItemsTitle);
         }
 

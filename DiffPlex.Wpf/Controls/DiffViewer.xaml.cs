@@ -1,24 +1,18 @@
-﻿using System;
+﻿using DiffPlex.DiffBuilder;
+using DiffPlex.DiffBuilder.Model;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Security;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-
-using DiffPlex.DiffBuilder;
-using DiffPlex.DiffBuilder.Model;
+using System.Xml;
 
 namespace DiffPlex.Wpf.Controls
 {
@@ -229,6 +223,46 @@ namespace DiffPlex.Wpf.Controls
             c.RefreshContextLinesMenuItemState(i);
         });
 
+        public static readonly DependencyProperty HistoryPositionProperty = RegisterDependencyProperty(nameof(HistoryPosition),0,
+            (o, e) =>
+            {
+                if (!(o is DiffViewer c) || e.OldValue == e.NewValue || !(e.NewValue is int newValue))
+                {
+                    return;
+                }
+
+                c.HistoryMessage = (newValue+1) + "/" + c.undoStack.Count;
+            });
+
+        public static readonly DependencyProperty HistoryMessageProperty = RegisterDependencyProperty(nameof(HistoryMessage), "0/0", (o, e) =>
+            { });
+
+        public static readonly DependencyProperty FilterNameProperty = RegisterDependencyProperty(nameof(FilterName),
+            "100009184", (o, e) =>
+            {
+                if (!(o is DiffViewer c) || e.OldValue == e.NewValue || !(e.NewValue is string newValue))
+                {
+                    return;
+                }
+
+                try
+                {
+                    var xml = new XmlDocument();
+                    xml.LoadXml(newValue);
+                    var value = xml.FirstChild.Attributes["Name"].InnerText;
+
+                    if (value != null)
+                    {
+                        newValue = value;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Debug.WriteLine(exception.Message);
+                }
+
+                c.DoByChange(newValue);
+            });
         /// <summary>
         /// The property of IsSideBySide.
         /// </summary>
@@ -255,6 +289,9 @@ namespace DiffPlex.Wpf.Controls
         /// </summary>
         private bool isHeaderEnabled;
 
+        private XmlNode OldXmlNode;
+        private XmlNode NewXmlNode;
+
         /// <summary>
         /// Initializes a new instance of the DiffViewer class.
         /// </summary>
@@ -274,14 +311,297 @@ namespace DiffPlex.Wpf.Controls
             ApplyHeaderTextProperties(LeftHeaderText);
             ApplyHeaderTextProperties(RightHeaderText);
             ApplyHeaderTextProperties(InlineHeaderText);
-            InlineContentPanel.LineContextMenu = LeftContentPanel.LineContextMenu = RightContentPanel.LineContextMenu = Helper.CreateLineContextMenu(this);
+
+            var contextMenu = Helper.CreateLineContextMenu(this);
+            var searchMenuItem = new MenuItem
+            {
+                Header = Helper.GetButtonName("Filter this Name", "C")
+            };
+            contextMenu.Items.Add(searchMenuItem);
+
+            var str = string.Empty;
+            ContextMenuOpening += (sender, ev) =>
+            {
+                searchMenuItem.IsEnabled = false;
+                var ele = ev.OriginalSource as FrameworkElement;
+                while (ele != null && ele != this && !(ele is Window))
+                {
+                    if (ele.Tag is DiffPiece piece)
+                    {
+                        str = piece.Text;
+                        break;
+                    }
+
+                    ele = ele.Parent as FrameworkElement;
+                }
+
+                searchMenuItem.IsEnabled = !string.IsNullOrWhiteSpace(str);
+            };
+
+            searchMenuItem.Click += (sender, ev) =>
+            {
+                if (string.IsNullOrEmpty(str)) return;
+
+                var newValue = str;
+                try
+                {
+                    var xml = new XmlDocument();
+                    xml.LoadXml(newValue);
+                    var value = xml.FirstChild.Attributes["Name"].InnerText;
+
+                    if (value != null)
+                    {
+                        newValue = value;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Debug.WriteLine(exception.Message);
+                }
+
+                this.FilterName = str;
+            };
+
+            InlineContentPanel.LineContextMenu =
+                LeftContentPanel.LineContextMenu = RightContentPanel.LineContextMenu = contextMenu;
             InlineHeaderText.ContextMenu = LeftHeaderText.ContextMenu = RightHeaderText.ContextMenu = HeaderContextMenu;
             InlineModeToggle.Header = Helper.GetButtonName(Resource.InlineMode ?? "Unified view", "U");
             SideBySideModeToggle.Header = Helper.GetButtonName(Resource.SideBySideMode ?? "Split view", "S");
             CollapseUnchangedSectionsToggle.Header = Helper.GetButtonName(Resource.SkipUnchangedLines ?? "Collapse unchanged sections", "C");
             ContextLinesMenuItems.Header = Helper.GetButtonName(Resource.ContextLines ?? "Lines for context", "L");
             RefreshContextLinesMenuItemState(LinesContext);
+
+            
+
+            LeftContentPanel.OnFileChange = (file) =>
+            {
+                OldTextHeader = file;
+                OldXmlNode = GetRootNode(file);
+                if (OldXmlNode == null)
+                {
+                    OldText = GetFileText(file);
+                    return;
+                }
+
+                var resultNode = GetResultNode(OldXmlNode);
+                if (resultNode == null)
+                {
+                    OldText = GetFileText(file);
+                    return;
+                }
+
+                OldText = PrintXML(resultNode.OuterXml);
+            };
+            RightContentPanel.OnFileChange = (file) =>
+            {
+                NewTextHeader = file;
+                NewXmlNode = GetRootNode(file);
+                if (NewXmlNode == null)
+                {
+                    NewText = GetFileText(file);
+                    return;
+                }
+                var resultNode = GetResultNode(NewXmlNode);
+
+                if (resultNode == null)
+                {
+                    NewText = GetFileText(file);
+                    return;
+                }
+
+                NewText = PrintXML(resultNode.OuterXml);
+            };
         }
+
+        private const int MAX_UNDO = 100;
+        public List<string> undoStack = new List<string>();
+        public int HistoryPosition
+        {
+            get => (int)GetValue(HistoryPositionProperty);
+            set
+            {
+                SetValue(HistoryPositionProperty, value);
+            }
+        }
+
+        public string HistoryMessage
+        {
+            get => (string)GetValue(HistoryMessageProperty);
+            set
+            {
+                SetValue(HistoryMessageProperty, value);
+            }
+        }
+        private bool isRedo = false;
+
+        public void Undo()
+        {
+            if (HistoryPosition > 0)
+            {
+                var name = undoStack[--HistoryPosition];
+                Do(name);
+            }
+        }
+
+        public void Redo()
+        {
+            if (HistoryPosition < undoStack.Count-1)
+            {
+                var name = undoStack[++HistoryPosition];
+                Do(name);
+            }
+        }
+
+        private void Do(string name)
+        {
+            isRedo = true;
+            FilterName = name;
+            isRedo = false;
+            this.UpdateFilterName(name);
+        }
+
+        private void DoByChange(string newValue)
+        {
+            if (string.IsNullOrEmpty(newValue) == false && isRedo == false)
+            {
+                var len = undoStack.Count;
+                for (int i = len - 1; i > HistoryPosition; i--)
+                {
+                    undoStack.RemoveAt(i);
+                }
+                undoStack.Add(newValue);
+
+                if (undoStack.Count > MAX_UNDO)
+                {
+                    undoStack.RemoveAt(0);
+                }
+
+                HistoryPosition = undoStack.Count - 1;
+            }
+
+            UpdateFilterName(newValue);
+        }
+
+        private void UpdateFilterName(string newValue)
+        {
+            if (OldXmlNode != null)
+            {
+                var resultNode = GetResultNode(OldXmlNode,newValue);
+                if (resultNode != null)
+                {
+                    var value = resultNode.OuterXml;
+                    OldText = PrintXML(value);
+                }
+                else
+                {
+                    OldText = "";
+                }
+            }
+            if (NewXmlNode != null)
+            {
+                var resultNode = GetResultNode(NewXmlNode,newValue);
+                if (resultNode != null)
+                {
+                    var value = resultNode.OuterXml;
+                    NewText = PrintXML(value);
+                }
+                else
+                {
+                    NewText = "";
+                }
+            }
+        }
+
+        private string GetFileText(string file)
+        {
+            if (File.Exists(file))
+            {
+                return File.ReadAllText(file,Encoding.UTF8);
+            }
+
+            return string.Empty;
+        }
+
+        private XmlNode GetRootNode(string file)
+        {
+            var xml = new XmlDocument();
+            xml.Load(file);
+
+            var xmlNode = xml.SelectSingleNode(singleKey);
+
+            if (xmlNode == null)
+            {
+                MessageBox.Show(singleKey + "不存在");
+                return null;
+            }
+            return xmlNode;
+        }
+
+        private XmlNode GetResultNode(XmlNode rootNode,string newValue="")
+        {
+            var list = rootNode.ChildNodes;
+
+            if (string.IsNullOrEmpty(newValue))
+            {
+                newValue = FilterName;
+            }
+
+            XmlNode resultNode = list[0];
+            foreach (XmlNode node in list)
+            {
+                if (node.Attributes["Name"].InnerText == newValue)
+                {
+                    resultNode = node;
+                    break;
+                }
+            }
+            return resultNode;
+        }
+
+        public static string PrintXML(string xml)
+        {
+            string result = "";
+
+            MemoryStream mStream = new MemoryStream();
+            XmlTextWriter writer = new XmlTextWriter(mStream, Encoding.Unicode);
+            XmlDocument document = new XmlDocument();
+
+            try
+            {
+                // Load the XmlDocument with the XML.
+                document.LoadXml(xml);
+
+                writer.Formatting = Formatting.Indented;
+
+                // Write the XML into a formatting XmlTextWriter
+                document.WriteContentTo(writer);
+                writer.Flush();
+                mStream.Flush();
+
+                // Have to rewind the MemoryStream in order to read
+                // its contents.
+                mStream.Position = 0;
+
+                // Read MemoryStream contents into a StreamReader.
+                StreamReader sReader = new StreamReader(mStream);
+
+                // Extract the text from the StreamReader.
+                string formattedXml = sReader.ReadToEnd();
+
+                result = formattedXml;
+            }
+            catch (XmlException)
+            {
+                // Handle the exception
+            }
+
+            mStream.Close();
+            writer.Close();
+
+            return result;
+        }
+
+        public string singleKey = "UnityGameFramework/BuildReport/AssetBundles";
 
         /// <summary>
         /// Occurs when the view mode is changed.
@@ -590,6 +910,14 @@ namespace DiffPlex.Wpf.Controls
         {
             get => (int)GetValue(LinesContextProperty);
             set => SetValue(LinesContextProperty, value);
+        }
+
+        [Bindable(true)]
+        [Category("Appearance")]
+        public string FilterName
+        {
+            get => (string)GetValue(FilterNameProperty);
+            set => SetValue(FilterNameProperty, value);
         }
 
         /// <summary>
@@ -1032,6 +1360,22 @@ namespace DiffPlex.Wpf.Controls
                 if (!(d is DiffViewer c) || e.OldValue == e.NewValue) return;
                 c.Refresh();
             }));
+        }
+
+        private void UserControl_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (Keyboard.IsKeyDown(Key.LeftCtrl))
+            {
+                if (Keyboard.IsKeyDown(Key.Z))
+                {
+                    Undo();
+                }
+                else if (Keyboard.IsKeyDown(Key.Y))
+                {
+                    Redo();
+                }
+            }
+
         }
     }
 }

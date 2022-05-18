@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -24,6 +25,7 @@ namespace DiffPlex.Wpf.Controls
         public InternalLinesViewer()
         {
             InitializeComponent();
+            this.AllowDrop = true;
         }
 
         public event ScrollChangedEventHandler ScrollChanged
@@ -255,6 +257,24 @@ namespace DiffPlex.Wpf.Controls
         private void ValueScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             AdjustScrollView();
+        }
+
+        public Action<string> OnFileChange;
+        private void ValueScrollViewer_Drop(object sender, DragEventArgs e)
+        {
+            string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+
+            if (files==null || files.Length == 0)
+            {
+                return;
+            }
+
+            var file = files[0];
+            Debug.WriteLine(file);
+
+            var extention = System.IO.Path.GetExtension(file);
+
+            this.OnFileChange?.Invoke(file);
         }
     }
 }

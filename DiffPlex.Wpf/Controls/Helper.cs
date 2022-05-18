@@ -350,6 +350,9 @@ namespace DiffPlex.Wpf.Controls
                 Header = GetButtonName(Resource.CopyThisLine ?? "Copy this line", "C")
             };
             menu.Items.Add(copyMenuItem);
+
+        
+
             var str = string.Empty;
             parentElement.ContextMenuOpening += (sender, ev) =>
             {
@@ -366,7 +369,7 @@ namespace DiffPlex.Wpf.Controls
                     ele = ele.Parent as FrameworkElement;
                 }
 
-                copyMenuItem.IsEnabled = !string.IsNullOrWhiteSpace(str);
+                copyMenuItem.IsEnabled =  !string.IsNullOrWhiteSpace(str);
             };
             copyMenuItem.Click += (sender, ev) =>
             {

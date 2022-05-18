@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFrameworks>netcoreapp3.1;net46</TargetFrameworks>
-    <UseWPF>true</UseWPF>
+    <TargetFrameworks>netcoreapp3.1</TargetFrameworks>
+    <UseWPF>True</UseWPF>
     <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
     <Authors>Kingcean Tuan</Authors>
     <Company />

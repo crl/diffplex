@@ -270,7 +270,7 @@
         <ScrollViewer x:Name="OperationScrollViewer" Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" ScrollChanged="OperationScrollViewer_ScrollChanged">
             <StackPanel x:Name="OperationPanel"/>
         </ScrollViewer>
-        <ScrollViewer Template="{DynamicResource LocalScrollViewerTemplate}" x:Name="ValueScrollViewer" Grid.Column="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="ValueScrollViewer_ScrollChanged" SizeChanged="ValueScrollViewer_SizeChanged">
+        <ScrollViewer Template="{DynamicResource LocalScrollViewerTemplate}" x:Name="ValueScrollViewer" Grid.Column="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="ValueScrollViewer_ScrollChanged" SizeChanged="ValueScrollViewer_SizeChanged" Drop="ValueScrollViewer_Drop">
             <StackPanel x:Name="ValuePanel"/>
         </ScrollViewer>
     </Grid>
